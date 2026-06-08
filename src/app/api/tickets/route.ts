@@ -4,25 +4,32 @@ import { db } from '@/lib/db';
 import { activityLog, ticket } from '@/lib/db/schema';
 import { requireSession } from '@/lib/server/require-session';
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await requireSession();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const role = session.user.role;
+  const { searchParams } = new URL(request.url);
+  // ?all=true digunakan oleh ReportsView agar TEKNISI bisa melihat semua tiket untuk kalkulasi kinerja
+  const fetchAll = searchParams.get('all') === 'true' && ['TEKNISI', 'ADMIN', 'PIMPINAN'].includes(role);
+
   let rows;
 
-  if (role === 'PEGAWAI') {
-    rows = await db.select().from(ticket).where(eq(ticket.reporterId, session.user.id)).orderBy(desc(ticket.createdAt));
+  if (fetchAll || role === 'ADMIN' || role === 'PIMPINAN') {
+    // Semua tiket — untuk laporan global dan role admin/pimpinan
+    rows = await db.select().from(ticket).orderBy(desc(ticket.createdAt));
   } else if (role === 'TEKNISI') {
+    // Tiket milik teknisi + tiket OPEN yang belum diassign
     rows = await db
       .select()
       .from(ticket)
       .where(or(eq(ticket.assigneeId, session.user.id), isNull(ticket.assigneeId)))
       .orderBy(desc(ticket.createdAt));
   } else {
-    rows = await db.select().from(ticket).orderBy(desc(ticket.createdAt));
+    // PEGAWAI — hanya tiket milik sendiri
+    rows = await db.select().from(ticket).where(eq(ticket.reporterId, session.user.id)).orderBy(desc(ticket.createdAt));
   }
 
   return NextResponse.json(rows);
