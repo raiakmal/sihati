@@ -657,27 +657,37 @@ function AuthScreen({
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [loggingIn, setLoggingIn] = React.useState(false);
-
-  // Fetch semua akun dari database untuk ditampilkan di halaman login
-  const [demoAccounts, setDemoAccounts] = React.useState<Array<{ role: RoleType; name: string; email: string }>>([]);
-  const [loadingDemo, setLoadingDemo] = React.useState(true);
+  const [dbUsers, setDbUsers] = React.useState<any[]>([]);
 
   React.useEffect(() => {
-    fetch('/api/users/demo')
-      .then(async (res) => {
-        if (res.ok) setDemoAccounts((await res.json()) as Array<{ role: RoleType; name: string; email: string }>);
+    fetch('/api/users')
+      .then((res) => {
+        if (res.ok) return res.json();
+        return [];
       })
-      .catch(() => {})
-      .finally(() => setLoadingDemo(false));
+      .then((data) => setDbUsers(data))
+      .catch(() => {});
   }, []);
 
-  // Password demo per role (sesuai seed.ts)
-  const demoPasswordMap: Record<string, string> = {
-    PEGAWAI: 'password123',
-    TEKNISI: 'password123',
-    ADMIN: 'admin123',
-    PIMPINAN: 'pimpinan123',
-  };
+  const demoAccounts = React.useMemo(() => {
+    if (dbUsers.length === 0) return [];
+
+    // Kita petakan (map) seluruh array dbUsers tanpa membatasi jumlahnya
+    return dbUsers.map((foundUser) => {
+      // Petakan password asli berdasarkan aturan akun bawaan / seed database
+      let plaintextPassword = 'password123';
+      if (foundUser.role === 'PIMPINAN' || foundUser.email.includes('kadis')) {
+        plaintextPassword = 'pimpinan123';
+      }
+
+      return {
+        role: foundUser.role,
+        name: foundUser.name,
+        email: foundUser.email,
+        password: plaintextPassword,
+      };
+    });
+  }, [dbUsers]);
 
   async function handleLogin() {
     setLoggingIn(true);
@@ -686,105 +696,164 @@ function AuthScreen({
   }
 
   return (
-    <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto grid min-h-screen max-w-6xl items-center gap-8 px-4 py-8 lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-sky-700 text-white">
-              <ShieldCheck className="h-7 w-7" />
+    <main className="relative min-h-screen bg-slate-50 overflow-hidden flex items-center">
+      {/* Decorative Background Elements */}
+      <div className="absolute top-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-sky-200/50 mix-blend-multiply blur-3xl opacity-70" />
+      <div className="absolute bottom-[-10%] right-[-10%] h-[500px] w-[500px] rounded-full bg-indigo-100/40 mix-blend-multiply blur-3xl opacity-70" />
+
+      <div className="relative z-10 mx-auto grid min-h-screen max-w-6xl items-center gap-12 px-6 py-12 lg:grid-cols-[1.1fr_0.9fr]">
+        {/* Left Section - Copywriting & Hero */}
+        <section className="space-y-8">
+          <div className="inline-flex items-center gap-3 rounded-2xl bg-white/60 p-2 pr-6 border border-white/80 shadow-sm backdrop-blur-md">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-sky-800 text-white shadow-lg shadow-sky-900/20">
+              <ShieldCheck className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-sky-800">SIHATI</p>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">Sistem Helpdesk dan Ticketing IT Pemerintah</h1>
+              <p className="text-xs font-bold uppercase tracking-wider text-sky-800">SIHATI</p>
+              <p className="text-sm font-medium text-slate-600">Sistem Helpdesk IT</p>
             </div>
           </div>
-          <p className="max-w-2xl text-base leading-7 text-slate-600">Portal operasional untuk pelaporan insiden IT, transparansi progres, dokumentasi audit-ready, dan pemantauan SLA lintas dinas.</p>
-          <div className="grid gap-3 sm:grid-cols-3">
+
+          <div className="space-y-4">
+            <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:leading-[1.15]">
+              Kelola Insiden IT dengan <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-indigo-600">Cepat & Transparan</span>
+            </h1>
+            <p className="max-w-xl text-lg leading-relaxed text-slate-600">Portal operasional terpadu untuk pelaporan insiden, pemantauan SLA lintas dinas, dan dokumentasi audit-ready di lingkungan pemerintahan.</p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
             <MetricPill icon={Clock3} label="Target MTTR" value="< 4 jam" />
             <MetricPill icon={Gauge} label="SLA Compliance" value="> 90%" />
             <MetricPill icon={CheckCircle2} label="Kepuasan" value="> 85%" />
           </div>
         </section>
-        <Card>
-          <CardHeader>
-            <CardTitle>{authMode === 'login' ? 'Masuk' : authMode === 'register' ? 'Registrasi Pegawai' : 'Pulihkan Password'}</CardTitle>
-            <CardDescription>{authMode === 'login' ? 'Gunakan email dan password akun Anda. Klik akun demo di bawah untuk pengisian otomatis.' : 'Hubungi Admin untuk registrasi dan pemulihan password.'}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {authMode === 'login' ? (
-              <>
-                <div className="space-y-2">
-                  <Label>Email dinas</Label>
-                  <Input
-                    type="email"
-                    placeholder="nama@pemda.go.id"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void handleLogin();
-                    }}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Password</Label>
-                  <Input
-                    type="password"
-                    placeholder="Masukkan password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void handleLogin();
-                    }}
-                  />
-                </div>
-                {authError && <p className="text-sm text-red-600">{authError}</p>}
-                <Button className="w-full" onClick={() => void handleLogin()} disabled={loggingIn}>
-                  <LockKeyhole className="h-4 w-4" />
-                  {loggingIn ? 'Memproses...' : 'Masuk ke Dashboard'}
-                </Button>
-                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                  <p className="font-semibold text-slate-700">Akun demo</p>
-                  <div className="mt-2 grid gap-2">
-                    {loadingDemo ? (
-                      <p className="py-2 text-center text-slate-400">Memuat akun demo...</p>
-                    ) : demoAccounts.length === 0 ? (
-                      <p className="py-2 text-center text-slate-400">Tidak ada akun demo tersedia.</p>
-                    ) : (
-                      demoAccounts.map((account) => (
-                        <button
-                          key={account.email}
-                          className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-left hover:bg-slate-50"
-                          onClick={() => {
-                            setEmail(account.email);
-                            setPassword(demoPasswordMap[account.role] ?? 'password123');
-                          }}
-                        >
-                          <span>
-                            {roleLabels[account.role]} — {account.name}
-                          </span>
-                          <span className="text-slate-400">isi otomatis</span>
+
+        {/* Right Section - Auth Card */}
+        <div className="relative">
+          {/* Subtle glow behind the card */}
+          <div className="absolute inset-0 bg-gradient-to-tr from-sky-100 to-white transform rotate-3 rounded-[2rem] shadow-xl opacity-60 blur-sm" />
+
+          <Card className="relative z-10 rounded-[2rem] border-white/80 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] sm:p-2">
+            <CardHeader className="pb-6">
+              <CardTitle className="text-2xl font-bold">{authMode === 'login' ? 'Selamat Datang' : authMode === 'register' ? 'Registrasi Pegawai' : 'Pulihkan Password'}</CardTitle>
+              <CardDescription className="text-sm text-slate-500">{authMode === 'login' ? 'Masuk dengan kredensial dinas Anda untuk mengakses dashboard SIHATI.' : 'Lengkapi formulir pendaftaran akun pegawai di bawah ini.'}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {authMode === 'login' ? (
+                <>
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-700 font-medium">Email dinas</Label>
+                      <Input
+                        type="email"
+                        placeholder="nama@pemda.go.id"
+                        className="h-11 rounded-xl border-slate-200 bg-white/50 focus-visible:ring-sky-500 focus-visible:bg-white transition-all shadow-sm"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void handleLogin();
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-slate-700 font-medium">Password</Label>
+                        <button type="button" onClick={() => onModeChange('forgot')} className="text-xs font-medium text-sky-600 hover:text-sky-700">
+                          Lupa password?
                         </button>
-                      ))
-                    )}
+                      </div>
+                      <Input
+                        type="password"
+                        placeholder="••••••••"
+                        className="h-11 rounded-xl border-slate-200 bg-white/50 focus-visible:ring-sky-500 focus-visible:bg-white transition-all shadow-sm"
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void handleLogin();
+                        }}
+                      />
+                    </div>
                   </div>
+
+                  {authError && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-100">{authError}</div>}
+
+                  <Button
+                    className="w-full h-11 rounded-xl bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-700 hover:to-sky-800 text-white shadow-md hover:shadow-lg transition-all"
+                    onClick={() => void handleLogin()}
+                    disabled={loggingIn}
+                  >
+                    {loggingIn ? (
+                      <span className="flex items-center gap-2">Memproses...</span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <LockKeyhole className="h-4 w-4" /> Masuk ke Dashboard
+                      </span>
+                    )}
+                  </Button>
+
+                  <div className="relative py-3">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-slate-200" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-white/80 backdrop-blur-sm px-2 text-slate-400 font-medium rounded-full">Atau gunakan</span>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white/50 p-4 shadow-sm backdrop-blur-sm">
+                    <p className="mb-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Akses Cepat (Demo)</p>
+                    <div className="grid gap-2">
+                      {demoAccounts.length > 0 ? (
+                        demoAccounts.map((account) => (
+                          <button
+                            key={account.email}
+                            className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-left text-sm hover:border-sky-300 hover:shadow-md transition-all duration-300"
+                            onClick={() => {
+                              setEmail(account.email);
+                              setPassword(account.password);
+                            }}
+                          >
+                            <div>
+                              <span className="block font-semibold text-slate-700 group-hover:text-sky-700 transition-colors">{account.name}</span>
+                              <span className="block text-xs text-slate-500">{roleLabels[account.role as RoleType]}</span>
+                            </div>
+                            <span className="rounded-lg bg-slate-50 border border-slate-100 px-2 py-1 text-[10px] font-medium text-slate-400 group-hover:bg-sky-50 group-hover:text-sky-600 group-hover:border-sky-100 transition-all">
+                              Isi Otomatis
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="py-4 text-center">
+                          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-sky-600"></span>
+                          <p className="mt-2 text-xs text-slate-500">Menghubungkan ke database...</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <PublicForm mode={authMode} onModeChange={onModeChange} />
+              )}
+
+              {authMode !== 'login' && (
+                <div className="mt-4 text-center text-sm">
+                  <span className="text-slate-500">Sudah punya akun? </span>
+                  <button onClick={() => onModeChange('login')} className="font-semibold text-sky-600 hover:text-sky-700 hover:underline">
+                    Masuk sekarang
+                  </button>
                 </div>
-              </>
-            ) : (
-              <PublicForm mode={authMode} onModeChange={onModeChange} />
-            )}
-            <div className="flex flex-wrap gap-2 text-sm">
-              <Button variant="ghost" size="sm" onClick={() => onModeChange('login')}>
-                Login
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => onModeChange('register')}>
-                Register
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => onModeChange('forgot')}>
-                Forgot Password
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              )}
+              {authMode === 'login' && (
+                <div className="mt-4 text-center text-sm">
+                  <span className="text-slate-500">Belum punya akun dinas? </span>
+                  <button onClick={() => onModeChange('register')} className="font-semibold text-sky-600 hover:text-sky-700 hover:underline">
+                    Daftar di sini
+                  </button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </main>
   );
@@ -805,7 +874,6 @@ function PublicForm({ mode, onModeChange }: { mode: 'register' | 'forgot'; onMod
       }
       setLoading(true);
       try {
-        // Mengirim request ke endpoint pendaftaran better-auth
         const res = await fetch('/api/auth/sign-up/email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -814,7 +882,6 @@ function PublicForm({ mode, onModeChange }: { mode: 'register' | 'forgot'; onMod
             email,
             password,
             unit,
-            // Menetapkan role default sebagai PEGAWAI
             role: 'PEGAWAI',
           }),
         });
@@ -823,7 +890,7 @@ function PublicForm({ mode, onModeChange }: { mode: 'register' | 'forgot'; onMod
           toast.error('Gagal mendaftar. Pastikan email belum terdaftar dan password minimal 8 karakter.');
         } else {
           toast.success('Registrasi berhasil! Silakan masuk dengan akun Anda.');
-          onModeChange('login'); // Otomatis kembali ke layar login
+          onModeChange('login');
         }
       } catch (error) {
         toast.error('Terjadi kesalahan jaringan.');
@@ -831,7 +898,6 @@ function PublicForm({ mode, onModeChange }: { mode: 'register' | 'forgot'; onMod
         setLoading(false);
       }
     } else {
-      // Flow untuk Forgot Password
       toast.info('Instruksi pemulihan dikirim ke email Anda.');
       onModeChange('login');
     }
@@ -847,8 +913,8 @@ function PublicForm({ mode, onModeChange }: { mode: 'register' | 'forgot'; onMod
       )}
       <Field label="Email dinas" placeholder="nama@pemda.go.id" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       {mode === 'register' && <Field label="Password" placeholder="Minimal 8 karakter" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />}
-      <Button className="w-full" onClick={() => void handleSubmit()} disabled={loading}>
-        {loading ? 'Memproses...' : mode === 'register' ? 'Buat Akun' : 'Kirim Instruksi'}
+      <Button className="mt-2 w-full h-11 rounded-xl bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-700 hover:to-sky-800 text-white shadow-md hover:shadow-lg transition-all" onClick={() => void handleSubmit()} disabled={loading}>
+        {loading ? 'Memproses...' : mode === 'register' ? 'Buat Akun Pegawai' : 'Kirim Instruksi Pemulihan'}
       </Button>
     </div>
   );
@@ -856,59 +922,63 @@ function PublicForm({ mode, onModeChange }: { mode: 'register' | 'forgot'; onMod
 
 function Field({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
   return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <Input {...props} />
+    <div className="space-y-1.5">
+      <Label className="text-slate-700 font-medium">{label}</Label>
+      <Input {...props} className="h-11 rounded-xl border-slate-200 bg-white/50 focus-visible:ring-sky-500 focus-visible:bg-white transition-all shadow-sm" />
     </div>
   );
 }
 
 function MetricPill({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <Icon className="mb-3 h-5 w-5 text-sky-700" />
-      <p className="text-xs uppercase text-slate-500">{label}</p>
-      <p className="text-xl font-semibold">{value}</p>
+    <div className="group rounded-2xl border border-white/60 bg-white/60 p-5 shadow-sm backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:bg-white/90">
+      <Icon className="mb-3 h-6 w-6 text-sky-600 transition-transform group-hover:scale-110" />
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-slate-800">{value}</p>
     </div>
   );
 }
 
 function Sidebar({ nav, view, open, onToggle, onViewChange }: { nav: ReturnType<typeof navForRole>; view: View; open: boolean; onToggle: () => void; onViewChange: (view: View) => void }) {
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4">
+    <div className="flex h-full flex-col bg-white/80 backdrop-blur-xl border-r border-white/60 shadow-[4px_0_24px_rgb(0,0,0,0.02)]">
+      <div className="flex h-20 items-center justify-between px-5 border-b border-slate-100/50">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-700 text-white">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-sky-800 text-white shadow-md shadow-sky-900/20">
             <ShieldCheck className="h-5 w-5" />
           </div>
           {open && (
-            <div>
-              <p className="font-semibold">SIHATI</p>
-              <p className="text-xs text-slate-500">Helpdesk IT</p>
+            <div className="flex flex-col">
+              <span className="text-sm font-extrabold tracking-wider text-slate-800">SIHATI</span>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Helpdesk IT</span>
             </div>
           )}
         </div>
-        <Button variant="ghost" size="icon" onClick={onToggle} aria-label="Toggle sidebar">
+        <Button variant="ghost" size="icon" onClick={onToggle} className="text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-xl h-8 w-8" aria-label="Toggle sidebar">
           {open ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </Button>
       </div>
-      <nav className="flex-1 space-y-1 p-3">
+      <nav className="flex-1 space-y-1.5 p-4 overflow-y-auto">
         {nav.map((item) => (
           <Tooltip.Root key={item.view}>
             <Tooltip.Trigger asChild>
               <button
                 className={cn(
-                  'flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-950',
-                  view === item.view && 'bg-sky-50 text-sky-800',
+                  'group flex h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium transition-all duration-300',
+                  view === item.view ? 'bg-gradient-to-r from-sky-50 to-sky-100/50 text-sky-700 shadow-sm border border-sky-100/50' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
                   !open && 'justify-center px-0',
                 )}
                 onClick={() => onViewChange(item.view)}
               >
-                <item.icon className="h-4 w-4 shrink-0" />
-                {open && <span>{item.label}</span>}
+                <item.icon className={cn('h-5 w-5 shrink-0 transition-transform duration-300', view === item.view ? 'scale-110' : 'group-hover:scale-110')} />
+                {open && <span className="font-semibold">{item.label}</span>}
               </button>
             </Tooltip.Trigger>
-            {!open && <Tooltip.Content className="rounded-md bg-slate-950 px-2 py-1 text-xs text-white">{item.label}</Tooltip.Content>}
+            {!open && (
+              <Tooltip.Content side="right" className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-white shadow-xl border border-slate-700 ml-2 animate-in fade-in zoom-in">
+                {item.label}
+              </Tooltip.Content>
+            )}
           </Tooltip.Root>
         ))}
       </nav>
@@ -920,28 +990,36 @@ function MobileNav({ open, nav, view, user, onClose, onViewChange }: { open: boo
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 lg:hidden">
-      <button className="absolute inset-0 bg-slate-950/40" onClick={onClose} aria-label="Tutup navigasi" />
-      <div className="absolute inset-y-0 left-0 w-80 max-w-[86vw] bg-white p-4 shadow-xl">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <p className="font-semibold">SIHATI</p>
-            <p className="text-xs text-slate-500">{roleLabels[user.role]}</p>
+      <button className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={onClose} aria-label="Tutup navigasi" />
+      <div className="absolute inset-y-0 left-0 w-80 max-w-[85vw] bg-white/90 backdrop-blur-xl p-6 shadow-2xl border-r border-white/60 flex flex-col animate-in slide-in-from-left duration-300">
+        <div className="mb-8 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-sky-800 text-white shadow-md">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-extrabold text-slate-800 tracking-wide">SIHATI</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-sky-600">{roleLabels[user.role]}</p>
+            </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="rounded-full bg-slate-100 hover:bg-slate-200 h-8 w-8 text-slate-500" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="space-y-1">
+        <div className="space-y-1.5 overflow-y-auto flex-1">
           {nav.map((item) => (
             <button
               key={item.view}
-              className={cn('flex h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-medium', view === item.view ? 'bg-sky-50 text-sky-800' : 'text-slate-600')}
+              className={cn(
+                'flex h-12 w-full items-center gap-4 rounded-xl px-4 text-sm font-semibold transition-all',
+                view === item.view ? 'bg-gradient-to-r from-sky-50 to-sky-100 text-sky-700 shadow-sm border border-sky-100/50' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
+              )}
               onClick={() => {
                 onViewChange(item.view);
                 onClose();
               }}
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon className={cn('h-5 w-5 transition-transform', view === item.view ? 'scale-110' : '')} />
               {item.label}
             </button>
           ))}
@@ -974,62 +1052,89 @@ function Topbar({
 }) {
   const unreadCount = userNotifications.filter((item) => !item.isRead).length;
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
-      <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
-        <Button className="lg:hidden" variant="ghost" size="icon" onClick={onMenu}>
-          <Menu className="h-5 w-5" />
+    <header className="sticky top-0 z-20 border-b border-white/60 bg-white/70 backdrop-blur-xl shadow-[0_4px_20px_rgb(0,0,0,0.02)]">
+      <div className="flex h-20 items-center gap-4 px-4 sm:px-6 lg:px-8">
+        <Button className="lg:hidden rounded-xl bg-white shadow-sm border border-slate-200/60" variant="ghost" size="icon" onClick={onMenu}>
+          <Menu className="h-5 w-5 text-slate-600" />
         </Button>
-        <GlobalSearch tickets={tickets} users={users} categories={categories} onTicketSelect={onTicketSelect} />
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger asChild>
-            <Button variant="outline" size="icon" aria-label="Notifikasi">
-              <div className="relative">
-                <Bell className="h-4 w-4" />
-                {unreadCount > 0 && <span className="absolute -right-2 -top-2 h-2.5 w-2.5 rounded-full bg-red-500" />}
-              </div>
-            </Button>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content align="end" className="z-50 w-80 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
-            <div className="flex items-center justify-between px-2 py-2">
-              <p className="text-sm font-semibold">Notifikasi</p>
-              <Button variant="ghost" size="sm" onClick={onOpenNotifications}>
-                Lihat semua
-              </Button>
-            </div>
-            {userNotifications.length ? (
-              userNotifications.map((item) => (
-                <div key={item.id} className="rounded-md p-2 text-sm hover:bg-slate-50">
-                  <p className="font-medium">{item.title}</p>
-                  <p className="text-slate-500">{item.message}</p>
+
+        <div className="flex-1 flex items-center">
+          <div className="w-full max-w-md">
+            <GlobalSearch tickets={tickets} users={users} categories={categories} onTicketSelect={onTicketSelect} />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <Button variant="outline" size="icon" aria-label="Notifikasi" className="relative rounded-xl border-slate-200/60 bg-white/80 shadow-sm hover:bg-slate-50 transition-all">
+                <div className="relative">
+                  <Bell className="h-5 w-5 text-slate-600" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white shadow-sm ring-2 ring-white">{unreadCount > 9 ? '9+' : unreadCount}</span>
+                  )}
                 </div>
-              ))
-            ) : (
-              <p className="px-2 py-3 text-sm text-slate-500">Tidak ada notifikasi baru.</p>
-            )}
-          </DropdownMenu.Content>
-        </DropdownMenu.Root>
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger asChild>
-            <button className="flex items-center gap-3 rounded-md p-1.5 hover:bg-slate-100">
-              <Avatar name={user.name} />
-              <span className="hidden text-left text-sm sm:block">
-                <span className="block font-medium">{user.name}</span>
-                <span className="block text-xs text-slate-500">{roleLabels[user.role]}</span>
-              </span>
-            </button>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content align="end" className="z-50 w-56 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
-            <div className="px-2 py-2 text-sm">
-              <p className="font-medium">{user.name}</p>
-              <p className="text-slate-500">{user.email}</p>
-            </div>
-            <DropdownMenu.Separator className="my-1 h-px bg-slate-100" />
-            <DropdownMenu.Item className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm outline-none hover:bg-slate-100" onSelect={() => void onLogout()}>
-              <LogOut className="h-4 w-4" />
-              Keluar
-            </DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Root>
+              </Button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content align="end" className="z-50 w-80 rounded-[1.5rem] border border-white/80 bg-white/90 p-2 shadow-xl backdrop-blur-xl animate-in slide-in-from-top-2">
+              <div className="flex items-center justify-between px-3 py-3 border-b border-slate-100/60 mb-1">
+                <p className="text-sm font-bold text-slate-800">Notifikasi</p>
+                <Button variant="ghost" size="sm" onClick={onOpenNotifications} className="text-xs font-semibold text-sky-600 hover:text-sky-700 hover:bg-sky-50 rounded-lg h-7 px-2">
+                  Lihat semua
+                </Button>
+              </div>
+              <div className="max-h-[300px] overflow-y-auto pr-1 space-y-1">
+                {userNotifications.length ? (
+                  userNotifications.slice(0, 5).map((item) => (
+                    <div key={item.id} className={cn('rounded-xl p-3 text-sm transition-all hover:bg-slate-50 cursor-default', !item.isRead ? 'bg-sky-50/50' : '')}>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className={cn('font-semibold', !item.isRead ? 'text-sky-900' : 'text-slate-700')}>{item.title}</p>
+                        {!item.isRead && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />}
+                      </div>
+                      <p className="text-slate-500 text-xs mt-0.5 line-clamp-2 leading-relaxed">{item.message}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                    <BellRing className="h-8 w-8 text-slate-300 mb-2 opacity-50" />
+                    <p className="text-xs font-medium text-slate-500">Tidak ada notifikasi baru.</p>
+                  </div>
+                )}
+              </div>
+            </DropdownMenu.Content>
+          </DropdownMenu.Root>
+
+          <div className="h-8 w-px bg-slate-200/60 hidden sm:block"></div>
+
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button className="flex items-center gap-3 rounded-2xl p-1.5 hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200/50 hover:shadow-sm">
+                <Avatar name={user.name} />
+                <span className="hidden text-left text-sm sm:block pr-2">
+                  <span className="block font-bold text-slate-800 tracking-tight">{user.name.split(' ')[0]}</span>
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-sky-600">{roleLabels[user.role]}</span>
+                </span>
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content align="end" className="z-50 w-64 rounded-[1.5rem] border border-white/80 bg-white/90 p-2 shadow-xl backdrop-blur-xl animate-in slide-in-from-top-2">
+              <div className="flex items-center gap-3 px-3 py-4">
+                <Avatar name={user.name} />
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-slate-800 truncate">{user.name}</p>
+                  <p className="text-xs font-medium text-slate-500 truncate">{user.email}</p>
+                </div>
+              </div>
+              <DropdownMenu.Separator className="my-1 h-px bg-slate-100/80" />
+              <DropdownMenu.Item
+                className="group flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 outline-none hover:bg-red-50 hover:text-red-600 transition-colors"
+                onSelect={() => void onLogout()}
+              >
+                <LogOut className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+                Keluar Aplikasi
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Root>
+        </div>
       </div>
     </header>
   );
@@ -1037,8 +1142,8 @@ function Topbar({
 
 function Avatar({ name }: { name: string }) {
   return (
-    <AvatarPrimitive.Root className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 text-sm font-semibold text-sky-800">
-      <AvatarPrimitive.Fallback>{getInitials(name)}</AvatarPrimitive.Fallback>
+    <AvatarPrimitive.Root className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-100 to-sky-200 shadow-inner ring-1 ring-white/60">
+      <span className="text-sm font-extrabold text-sky-700 drop-shadow-sm">{getInitials(name)}</span>
     </AvatarPrimitive.Root>
   );
 }
@@ -1046,13 +1151,13 @@ function Avatar({ name }: { name: string }) {
 function PageHeader({ user, view }: { user: User; view: View }) {
   const title = navForRole(user.role).find((item) => item.view === view)?.label ?? 'Dashboard';
   return (
-    <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
-      <div>
-        <p className="text-sm font-medium text-sky-800">Selamat bekerja, {user.name}</p>
-        <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
+    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end mb-2">
+      <div className="space-y-1">
+        <p className="text-xs font-bold uppercase tracking-widest text-sky-600">Selamat bekerja, {user.name.split(' ')[0]}</p>
+        <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">{title}</h2>
       </div>
-      <Badge variant="sky">
-        {roleLabels[user.role]} - {user.unit}
+      <Badge variant="slate" className="rounded-lg px-3 py-1.5 text-xs font-semibold bg-white border-slate-200/60 shadow-sm text-slate-600">
+        <span className="text-sky-600 mr-1.5">{roleLabels[user.role]}</span> • <span className="ml-1.5">{user.unit || 'SIHATI App'}</span>
       </Badge>
     </div>
   );
@@ -1063,8 +1168,10 @@ function DashboardView({ currentUser, tickets, users, categories, onOpenTicket }
   const kpi = kpiForTickets(relevant);
   const urgent = relevant.filter((ticket) => ['CRITICAL', 'HIGH'].includes(ticket.priority)).slice(0, 4);
   const statusChart = Object.entries(countBy(tickets.map((ticket) => statusLabels[ticket.status]))).map(([name, value]) => ({ name, value }));
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {/* KPI Section */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <KpiCard icon={TicketCheck} label="Total Ticket" value={kpi.total} helper="Seluruh tiket relevan" />
         <KpiCard icon={FileClock} label="Open Ticket" value={kpi.open} helper="Status Open" />
@@ -1073,55 +1180,85 @@ function DashboardView({ currentUser, tickets, users, categories, onOpenTicket }
         <KpiCard icon={Gauge} label="SLA Compliance" value={`${kpi.slaCompliance}%`} helper="Tepat waktu" />
         <KpiCard icon={Clock3} label="Average MTTR" value={`${kpi.avgMttr} jam`} helper="Rata-rata durasi" />
       </div>
-      <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Tren Tiket Mingguan</CardTitle>
-            <CardDescription>Perbandingan tiket masuk, selesai, dan MTTR.</CardDescription>
+
+      {/* Charts Section */}
+      <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+        <Card className="overflow-hidden rounded-[2rem] border-white/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
+          <CardHeader className="border-b border-slate-100/50 pb-4 bg-white/50">
+            <CardTitle className="text-xl font-bold text-slate-800">Tren Tiket Mingguan</CardTitle>
+            <CardDescription className="text-slate-500">Perbandingan tiket masuk dan selesai</CardDescription>
           </CardHeader>
-          <CardContent className="h-72">
+          <CardContent className="h-[320px] p-6">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={weeklyTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="day" />
-                <YAxis />
-                <ChartTooltip />
-                <Area dataKey="open" name="Masuk" stroke="#0369a1" fill="#bae6fd" />
-                <Area dataKey="resolved" name="Selesai" stroke="#059669" fill="#bbf7d0" />
+              <AreaChart data={weeklyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorOpen" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorResolved" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                <ChartTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                <Area type="monotone" dataKey="open" name="Masuk" stroke="#0ea5e9" strokeWidth={3} fillOpacity={1} fill="url(#colorOpen)" />
+                <Area type="monotone" dataKey="resolved" name="Selesai" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorResolved)" />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Status Tiket</CardTitle>
-            <CardDescription>Distribusi seluruh tiket demo.</CardDescription>
+
+        <Card className="overflow-hidden rounded-[2rem] border-white/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
+          <CardHeader className="border-b border-slate-100/50 pb-4 bg-white/50">
+            <CardTitle className="text-xl font-bold text-slate-800">Status Tiket</CardTitle>
+            <CardDescription className="text-slate-500">Distribusi seluruh tiket</CardDescription>
           </CardHeader>
-          <CardContent className="h-72">
+          <CardContent className="h-[320px] p-6 flex items-center justify-center">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={statusChart} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85}>
+                <Pie data={statusChart} dataKey="value" nameKey="name" innerRadius={65} outerRadius={95} paddingAngle={5}>
                   {statusChart.map((_, index) => (
-                    <Cell key={index} fill={['#0369a1', '#7c3aed', '#f59e0b', '#059669', '#dc2626'][index % 5]} />
+                    <Cell key={`cell-${index}`} fill={['#0ea5e9', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444'][index % 5]} className="stroke-white stroke-2" />
                   ))}
                 </Pie>
-                <ChartTooltip />
+                <ChartTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Tiket yang Membutuhkan Perhatian</CardTitle>
-          <CardDescription>Prioritas tinggi, SLA dekat, atau status menunggu.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 lg:grid-cols-2">
-            {urgent.map((ticket) => (
-              <TicketCard key={ticket.id} ticket={ticket} users={users} categories={categories} onOpen={() => onOpenTicket(ticket.id)} />
-            ))}
+
+      {/* Urgent Tickets Section */}
+      <Card className="overflow-hidden rounded-[2rem] border-white/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
+        <CardHeader className="border-b border-slate-100/50 pb-4 bg-white/50">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-100 text-red-600 shadow-sm">
+              <Activity className="h-6 w-6" />
+            </div>
+            <div>
+              <CardTitle className="text-xl font-bold text-slate-800">Membutuhkan Perhatian</CardTitle>
+              <CardDescription className="text-slate-500">Prioritas tinggi, SLA dekat, atau status menunggu.</CardDescription>
+            </div>
           </div>
+        </CardHeader>
+        <CardContent className="p-6 bg-slate-50/50">
+          {urgent.length > 0 ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {urgent.map((ticket) => (
+                <TicketCard key={ticket.id} ticket={ticket} users={users} categories={categories} onOpen={() => onOpenTicket(ticket.id)} />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <CheckCircle2 className="mb-3 h-14 w-14 text-emerald-400 opacity-50" />
+              <p className="text-lg font-semibold text-slate-700">Tidak ada tiket kritis</p>
+              <p className="text-sm text-slate-500">Semua insiden prioritas tinggi telah tertangani.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -1130,15 +1267,18 @@ function DashboardView({ currentUser, tickets, users, categories, onOpenTicket }
 
 function KpiCard({ icon: Icon, label, value, helper }: { icon: React.ElementType; label: string; value: number | string; helper: string }) {
   return (
-    <Card>
-      <CardContent className="flex items-start gap-4 p-5">
-        <div className="rounded-lg bg-sky-50 p-3 text-sky-700">
-          <Icon className="h-5 w-5" />
+    <Card className="group relative overflow-hidden rounded-2xl border-white/60 bg-white/80 shadow-sm backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:bg-white">
+      {/* Decorative gradient blob */}
+      <div className="absolute -right-6 -top-6 h-28 w-28 rounded-full bg-gradient-to-br from-sky-200 to-transparent opacity-40 blur-2xl transition-all duration-500 group-hover:scale-150 group-hover:opacity-60" />
+
+      <CardContent className="relative z-10 flex items-start gap-5 p-6">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[1rem] bg-gradient-to-br from-sky-50 to-sky-100 text-sky-600 shadow-inner transition-colors duration-300 group-hover:from-sky-500 group-hover:to-sky-600 group-hover:text-white">
+          <Icon className="h-7 w-7" />
         </div>
         <div>
-          <p className="text-sm text-slate-500">{label}</p>
-          <p className="text-2xl font-semibold">{value}</p>
-          <p className="text-xs text-slate-500">{helper}</p>
+          <p className="text-sm font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+          <p className="mt-1 text-3xl font-extrabold tracking-tight text-slate-800">{value}</p>
+          <p className="mt-1.5 text-xs font-medium text-slate-400">{helper}</p>
         </div>
       </CardContent>
     </Card>
@@ -1157,22 +1297,36 @@ function CreateTicketView({ categories, onSubmit }: { categories: Category[]; on
     },
   });
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Buat Tiket Baru</CardTitle>
-        <CardDescription>Lengkapi informasi insiden agar teknisi dapat memprioritaskan penanganan.</CardDescription>
+    <Card className="overflow-hidden rounded-[2rem] border-white/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
+      <CardHeader className="border-b border-slate-100/50 pb-6 bg-white/50">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-100 text-sky-600 shadow-sm">
+            <CirclePlus className="h-6 w-6" />
+          </div>
+          <div>
+            <CardTitle className="text-xl font-bold text-slate-800">Buat Tiket Baru</CardTitle>
+            <CardDescription className="text-slate-500">Lengkapi detail kendala infrastruktur IT Anda untuk mempercepat koordinasi teknisi.</CardDescription>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent>
-        <form className="grid gap-5 lg:grid-cols-2" onSubmit={(e) => void form.handleSubmit(onSubmit)(e)}>
+      <CardContent className="p-6 sm:p-8">
+        <form className="grid gap-6 lg:grid-cols-2" onSubmit={(e) => void form.handleSubmit(onSubmit)(e)}>
           <div className="space-y-2 lg:col-span-2">
-            <Label>Judul tiket</Label>
-            <Input placeholder="Contoh: Jaringan MikroTik lantai 3 tidak stabil" {...form.register('title')} />
+            <Label className="text-slate-700 font-semibold text-sm">Judul Kendala / Insiden</Label>
+            <Input
+              placeholder="Contoh: Jaringan internet router Mikrotik lantai 2 mati total"
+              className="h-11 rounded-xl border-slate-200 bg-white/50 focus-visible:ring-sky-500 focus-visible:bg-white transition-all shadow-sm"
+              {...form.register('title')}
+            />
             <FormError message={form.formState.errors.title?.message} />
           </div>
           <div className="space-y-2">
-            <Label>Kategori</Label>
-            <select className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm" {...form.register('categoryId')}>
-              <option value="">Pilih kategori</option>
+            <Label className="text-slate-700 font-semibold text-sm">Kategori Layanan IT</Label>
+            <select
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all shadow-sm text-slate-800"
+              {...form.register('categoryId')}
+            >
+              <option value="">Pilih kategori aduan</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
@@ -1182,8 +1336,11 @@ function CreateTicketView({ categories, onSubmit }: { categories: Category[]; on
             <FormError message={form.formState.errors.categoryId?.message} />
           </div>
           <div className="space-y-2">
-            <Label>Prioritas</Label>
-            <select className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm" {...form.register('priority')}>
+            <Label className="text-slate-700 font-semibold text-sm">Tingkat Prioritas Dampak</Label>
+            <select
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all shadow-sm text-slate-800"
+              {...form.register('priority')}
+            >
               {Object.entries(priorityLabels).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
@@ -1192,26 +1349,27 @@ function CreateTicketView({ categories, onSubmit }: { categories: Category[]; on
             </select>
           </div>
           <div className="space-y-2 lg:col-span-2">
-            <Label>Lokasi / unit terdampak</Label>
-            <Input placeholder="Gedung, lantai, loket, atau nama dinas" {...form.register('location')} />
+            <Label className="text-slate-700 font-semibold text-sm">Lokasi Detail / Unit Kerja Terdampak</Label>
+            <Input
+              placeholder="Gedung A, Lantai 2, Ruang Rapat Utama Bappeda"
+              className="h-11 rounded-xl border-slate-200 bg-white/50 focus-visible:ring-sky-500 focus-visible:bg-white transition-all shadow-sm"
+              {...form.register('location')}
+            />
             <FormError message={form.formState.errors.location?.message} />
           </div>
           <div className="space-y-2 lg:col-span-2">
-            <Label>Deskripsi masalah</Label>
-            <Textarea placeholder="Jelaskan gejala, waktu kejadian, dampak layanan, dan langkah yang sudah dicoba." {...form.register('description')} />
+            <Label className="text-slate-700 font-semibold text-sm">Deskripsi Kronologi Masalah</Label>
+            <Textarea
+              placeholder="Jelaskan secara rinci mengenai gejala kendala, waktu mulai terjadinya gangguan, serta dampak operasionalnya pada layanan publik."
+              className="min-h-[120px] rounded-xl border-slate-200 bg-white/50 focus-visible:ring-sky-500 focus-visible:bg-white transition-all shadow-sm p-4 leading-relaxed"
+              {...form.register('description')}
+            />
             <FormError message={form.formState.errors.description?.message} />
           </div>
-          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5 lg:col-span-2">
-            <div className="flex flex-col items-center justify-center gap-2 text-center">
-              <Upload className="h-6 w-6 text-slate-500" />
-              <p className="text-sm font-medium">Upload lampiran mock</p>
-              <p className="text-xs text-slate-500">Area ini menunjukkan desain upload; file belum dikirim ke storage.</p>
-            </div>
-          </div>
-          <div className="flex justify-end lg:col-span-2">
-            <Button type="submit">
+          <div className="flex justify-end lg:col-span-2 pt-2">
+            <Button type="submit" className="h-11 rounded-xl bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-700 hover:to-sky-800 text-white shadow-md hover:shadow-lg transition-all px-6 font-medium">
               <CirclePlus className="h-4 w-4" />
-              Kirim Tiket
+              Kirim Tiket Pengaduan
             </Button>
           </div>
         </form>
@@ -1258,31 +1416,39 @@ function TicketWorkspace({
   onStatusChange: (id: string, status: TicketStatus) => Promise<void>;
   onComment: (id: string, message: string, isInternal: boolean) => Promise<void>;
 }) {
-  // Gunakan selectedTicket yang dipilih user — fallback ke tiket pertama jika belum ada pilihan
-  const active = selectedTicket ?? tickets[0] ?? allTickets[0];
+  const active = tickets[0] ?? selectedTicket ?? allTickets[0];
   return (
-    <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-      <Card>
-        <CardHeader className="gap-3">
-          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+    <div className="grid gap-6 xl:grid-cols-[1fr_1fr] items-start">
+      {/* Kolom Kiri: Tabel Antrian / Daftar Tiket */}
+      <Card className="overflow-hidden rounded-[2rem] border-white/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
+        <CardHeader className="border-b border-slate-100/50 pb-5 bg-white/50">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div>
-              <CardTitle>{title}</CardTitle>
-              <CardDescription>{tickets.length} tiket sesuai filter saat ini.</CardDescription>
+              <CardTitle className="text-xl font-bold text-slate-800">{title}</CardTitle>
+              <CardDescription className="text-slate-500">Memantau riwayat seluruh berkas tiket aduan masuk.</CardDescription>
             </div>
-            <select className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm" value={statusFilter} onChange={(event) => onStatusFilterChange(event.target.value as TicketStatus | 'ALL')}>
-              <option value="ALL">Semua status</option>
-              {Object.entries(statusLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            <div>
+              <select
+                className="h-10 rounded-xl border border-slate-200 bg-white/80 px-4 text-sm font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all cursor-pointer"
+                value={statusFilter}
+                onChange={(event) => onStatusFilterChange(event.target.value as TicketStatus | 'ALL')}
+              >
+                <option value="ALL">Semua Status</option>
+                {Object.entries(statusLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0 sm:p-4 bg-white/20">
           <TicketTable tickets={tickets} users={users} categories={categories} onOpen={onSelectTicket} />
         </CardContent>
       </Card>
+
+      {/* Kolom Kanan: Detail & Timeline Aksi Tiket Aktif */}
       <TicketDetail
         currentUser={currentUser}
         ticket={active}
@@ -1361,23 +1527,47 @@ function TicketTable({ tickets, users, categories, onOpen }: { tickets: Ticket[]
 
 function TicketCard({ ticket, users, categories, onOpen }: { ticket: Ticket; users: User[]; categories: Category[]; onOpen: () => void }) {
   return (
-    <button className="rounded-lg border border-slate-200 bg-white text-left shadow-sm transition hover:border-sky-300" onClick={onOpen}>
+    <button className="group flex w-full flex-col text-left rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-sky-300 hover:shadow-md" onClick={onOpen}>
       <TicketCardContent ticket={ticket} users={users} categories={categories} />
     </button>
   );
 }
 
 function TicketCardContent({ ticket, users, categories }: { ticket: Ticket; users: User[]; categories: Category[] }) {
+  // Kalkulasi SLA pintar untuk ditampilkan di lencana tiket
+  const now = new Date();
+  const slaDue = new Date(ticket.slaDueAt);
+  const isOverdue = now > slaDue && !['RESOLVED', 'CLOSED', 'REJECTED'].includes(ticket.status);
+  const slaMinutesLeft = Math.round((slaDue.getTime() - now.getTime()) / 60000);
+  const slaLabel = isOverdue ? `Terlampaui ${Math.abs(slaMinutesLeft)}m` : slaMinutesLeft < 60 ? `SLA ${slaMinutesLeft}m` : `SLA ${Math.round(slaMinutesLeft / 60)}j`;
+
   return (
-    <div className="p-4">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="font-semibold">{ticket.code}</span>
-        <Badge variant={statusColor[ticket.status]}>{statusLabels[ticket.status]}</Badge>
-        <Badge variant={priorityColor[ticket.priority]}>{priorityLabels[ticket.priority]}</Badge>
+    <div className="w-full">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold tracking-wider text-slate-600 transition-colors group-hover:bg-sky-100 group-hover:text-sky-800">{ticket.code}</span>
+        <div className="flex gap-1.5">
+          <Badge variant={statusColor[ticket.status]} className="rounded-md px-2 py-0.5 text-[10px] uppercase tracking-wider">
+            {statusLabels[ticket.status]}
+          </Badge>
+          <Badge variant={priorityColor[ticket.priority]} className="rounded-md px-2 py-0.5 text-[10px] uppercase tracking-wider">
+            {priorityLabels[ticket.priority]}
+          </Badge>
+          {!['RESOLVED', 'CLOSED', 'REJECTED'].includes(ticket.status) && (
+            <Badge variant={isOverdue ? 'red' : slaMinutesLeft < 60 ? 'amber' : 'emerald'} className="rounded-md px-2 py-0.5 text-[10px] uppercase tracking-wider">
+              {slaLabel}
+            </Badge>
+          )}
+        </div>
       </div>
-      <p className="font-medium">{ticket.title}</p>
-      <p className="mt-1 text-sm text-slate-500">{getCategory(categories, ticket.categoryId).name}</p>
-      <p className="mt-2 text-xs text-slate-500">Pelapor: {getUser(users, ticket.reporterId).name}</p>
+      <p className="line-clamp-2 text-base font-semibold leading-snug text-slate-800">{ticket.title}</p>
+      <p className="mt-1.5 text-sm font-medium text-slate-500">{getCategory(categories, ticket.categoryId).name}</p>
+
+      <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4">
+        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-sky-100 to-sky-200 text-[10px] font-bold text-sky-800 shadow-inner">{getInitials(getUser(users, ticket.reporterId).name)}</div>
+        <p className="text-xs font-medium text-slate-500 truncate">
+          Dilaporkan oleh <span className="font-semibold text-slate-700">{getUser(users, ticket.reporterId).name}</span>
+        </p>
+      </div>
     </div>
   );
 }
@@ -1404,135 +1594,142 @@ function TicketDetail({
   onComment: (message: string, internal: boolean) => Promise<void>;
 }) {
   const [message, setMessage] = React.useState('');
-
-  // 1. Definisikan secara tegas siapa yang berhak atas Catatan Internal
-  const canSeeInternal = ['TEKNISI', 'ADMIN'].includes(currentUser.role);
-
-  // Set default checkbox sesuai izin akses
+  const mountaineerScope = ['TEKNISI', 'ADMIN'];
+  const canSeeInternal = mountaineerScope.includes(currentUser.role);
   const [internal, setInternal] = React.useState(canSeeInternal);
-
   const canResolve = can(currentUser.role, 'TICKET_STATUS_UPDATE');
   const canAssign = can(currentUser.role, 'TICKET_ASSIGN');
 
-  // FILTER 1: Sembunyikan jejak log "Catatan Internal" di Timeline dari Pimpinan dan Pegawai
   const visibleLogs = activityLogs.filter((log) => canSeeInternal || log.action !== 'INTERNAL_NOTE');
   const timelineEvents = buildTicketTimeline(ticket, users, categories, visibleLogs);
-
-  // FILTER 2: Sembunyikan blok komentar berstatus "Internal" dari Pimpinan dan Pegawai
   const visibleComments = comments.filter((comment) => canSeeInternal || !comment.isInternal);
 
-  // ─── Kalkulasi SLA — PRD: MTTR < 4 jam untuk High/Critical ──────────────
   const now = new Date();
   const slaDue = new Date(ticket.slaDueAt);
   const isOverdue = now > slaDue && !['RESOLVED', 'CLOSED', 'REJECTED'].includes(ticket.status);
   const slaMinutesLeft = Math.round((slaDue.getTime() - now.getTime()) / 60000);
-  const slaLabel = isOverdue ? `SLA Terlampaui ${Math.abs(slaMinutesLeft)} menit` : slaMinutesLeft < 60 ? `SLA: ${slaMinutesLeft} menit tersisa` : `SLA: ${Math.round(slaMinutesLeft / 60)} jam tersisa`;
+  const slaLabel = isOverdue ? `SLA Terlampaui ${Math.abs(slaMinutesLeft)}m` : slaMinutesLeft < 60 ? `SLA: ${slaMinutesLeft}m tersisa` : `SLA: ${Math.round(slaMinutesLeft / 60)}j tersisa`;
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="overflow-hidden rounded-[2rem] border-white/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
+      <CardHeader className="border-b border-slate-100/50 pb-5 bg-white/50">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-          <div>
-            <CardTitle>
-              {ticket.code} - {ticket.title}
-            </CardTitle>
-            <CardDescription>
-              {getCategory(categories, ticket.categoryId).name} - dibuat {toDate(ticket.createdAt)}
-            </CardDescription>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-slate-900 text-lg">{ticket.code}</span>
+              <span className="text-slate-400">|</span>
+              <span className="text-sm font-medium text-slate-500">{getCategory(categories, ticket.categoryId).name}</span>
+            </div>
+            <CardTitle className="text-xl font-extrabold text-slate-800 leading-snug">{ticket.title}</CardTitle>
+            <CardDescription className="text-xs font-medium text-slate-400">Dibuat pada {toDate(ticket.createdAt)}</CardDescription>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant={statusColor[ticket.status]}>{statusLabels[ticket.status]}</Badge>
-            <Badge variant={priorityColor[ticket.priority]}>{priorityLabels[ticket.priority]}</Badge>
-            {!['RESOLVED', 'CLOSED', 'REJECTED'].includes(ticket.status) && <Badge variant={isOverdue ? 'red' : slaMinutesLeft < 60 ? 'amber' : 'emerald'}>{slaLabel}</Badge>}
+          <div className="flex flex-wrap gap-1.5">
+            <Badge variant={statusColor[ticket.status]} className="rounded-md uppercase text-[10px] tracking-wider px-2 py-0.5">
+              {statusLabels[ticket.status]}
+            </Badge>
+            <Badge variant={priorityColor[ticket.priority]} className="rounded-md uppercase text-[10px] tracking-wider px-2 py-0.5">
+              {priorityLabels[ticket.priority]}
+            </Badge>
+            {!['RESOLVED', 'CLOSED', 'REJECTED'].includes(ticket.status) && (
+              <Badge variant={isOverdue ? 'red' : slaMinutesLeft < 60 ? 'amber' : 'emerald'} className="rounded-md uppercase text-[10px] tracking-wider px-2 py-0.5">
+                {slaLabel}
+              </Badge>
+            )}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className="space-y-6 p-6">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Info label="Pelapor" value={getUser(users, ticket.reporterId).name} />
-          <Info label="Teknisi" value={ticket.assigneeId ? getUser(users, ticket.assigneeId).name : 'Belum ditugaskan'} />
-          <Info label="Lokasi" value={ticket.location} />
-          <Info label="Batas SLA" value={toDate(ticket.slaDueAt)} />
+          <Info label="Pelapor Resmi" value={getUser(users, ticket.reporterId).name} />
+          <Info label="Teknisi Penanggungjawab" value={ticket.assigneeId ? getUser(users, ticket.assigneeId).name : 'Belum ditugaskan'} />
+          <Info label="Lokasi Penanganan" value={ticket.location} />
+          <Info label="Batas Toleransi SLA" value={toDate(ticket.slaDueAt)} />
         </div>
-        <div>
-          <Label>Deskripsi</Label>
-          <p className="mt-2 rounded-lg bg-slate-50 p-4 text-sm leading-6 text-slate-700">{ticket.description}</p>
+
+        <div className="space-y-2">
+          <Label className="text-slate-700 font-bold text-sm">Detail Aduan</Label>
+          <p className="rounded-2xl bg-slate-50/70 border border-slate-100 p-4 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">{ticket.description}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+
+        <div className="flex flex-wrap gap-2 items-center pb-6 border-b border-slate-100">
           {canAssign && !ticket.assigneeId && (
-            <Button onClick={() => void onAssign()}>
-              <UserCog className="h-4 w-4" />
-              Assign to Me
+            <Button onClick={() => void onAssign()} className="rounded-xl bg-sky-600 hover:bg-sky-700 text-white h-10 shadow-sm transition-all px-4 text-xs font-semibold">
+              <UserCog className="h-4 w-4" /> Ambil Alih Tugas
             </Button>
           )}
           {canResolve && (
-            <select className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm" value={ticket.status} onChange={(event) => void onStatusChange(event.target.value as TicketStatus)}>
-              {Object.entries(statusLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Ubah Status:</span>
+              <select
+                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all cursor-pointer"
+                value={ticket.status}
+                onChange={(event) => void onStatusChange(event.target.value as TicketStatus)}
+              >
+                {Object.entries(statusLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
         </div>
-        <Tabs.Root defaultValue="timeline">
-          <Tabs.List className="flex gap-2 border-b border-slate-200">
-            <TabTrigger value="timeline">Timeline</TabTrigger>
-            <TabTrigger value="attachments">Lampiran</TabTrigger>
-          </Tabs.List>
-          <Tabs.Content value="timeline" className="space-y-4 pt-4">
+
+        {/* Section Timeline (Tanpa Tab) */}
+        <div className="space-y-5">
+          <div className="rounded-2xl bg-white border border-slate-100 p-4 shadow-sm">
             <TicketTimeline events={timelineEvents} />
-            <div className="space-y-3">
-              <Label>Komentar dan catatan</Label>
-              <Textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Tambahkan update progres atau catatan resolusi..." />
+          </div>
 
-              {/* FILTER 3: Sembunyikan Checkbox Internal dari Pimpinan dan Pegawai */}
-              {canSeeInternal && (
-                <label className="flex items-center gap-2 text-sm text-slate-600">
-                  <input type="checkbox" checked={internal} onChange={(event) => setInternal(event.target.checked)} />
-                  Catatan internal teknisi/admin
+          <div className="space-y-3">
+            <Label className="text-slate-700 font-bold text-xs uppercase tracking-wider">Kirim Respon / Catatan Tindakan</Label>
+            <Textarea
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              placeholder="Tulis tanggapan penyelesaian, instruksi perbaikan, atau respon kendala..."
+              className="rounded-xl border-slate-200 bg-white/50 focus-visible:ring-sky-500 focus-visible:bg-white transition-all shadow-sm p-3.5 text-sm leading-relaxed min-h-[90px]"
+            />
+            <div className="flex items-center justify-between flex-wrap gap-3 pt-1">
+              {canSeeInternal ? (
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase cursor-pointer select-none">
+                  <input type="checkbox" checked={internal} onChange={(event) => setInternal(event.target.checked)} className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 h-4 w-4" />
+                  Catatan internal khusus teknisi / admin
                 </label>
+              ) : (
+                <div />
               )}
-
               <Button
                 onClick={() => {
                   void onComment(message, internal);
                   setMessage('');
                 }}
+                className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white h-10 px-5 text-xs font-semibold shadow-sm transition-all"
               >
-                <MessageSquareText className="h-4 w-4" />
-                Simpan Komentar
+                <MessageSquareText className="h-4 w-4" /> Kirim Tanggapan
               </Button>
             </div>
+          </div>
 
-            <div className="space-y-3">
-              {visibleComments.map((comment) => (
-                <div key={comment.id} className="rounded-lg border border-slate-200 p-3">
-                  <div className="mb-1 flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-medium">{getUser(users, comment.userId).name}</p>
-                    {comment.isInternal && <Badge variant="amber">Internal</Badge>}
-                    <span className="text-xs text-slate-500">{toDate(comment.createdAt)}</span>
+          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+            {visibleComments.map((comment) => (
+              <div key={comment.id} className={cn('rounded-2xl border p-4 shadow-2xs transition-all', comment.isInternal ? 'bg-amber-50/50 border-amber-200/60' : 'bg-white border-slate-100')}>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[9px] font-bold text-slate-700">{getInitials(getUser(users, comment.userId).name)}</div>
+                    <p className="text-xs font-bold text-slate-800">{getUser(users, comment.userId).name}</p>
+                    {comment.isInternal && (
+                      <Badge variant="amber" className="text-[9px] px-1.5 py-0">
+                        Internal IT
+                      </Badge>
+                    )}
                   </div>
-                  <p className="text-sm text-slate-700">{comment.message}</p>
+                  <span className="text-[10px] font-medium text-slate-400">{toDate(comment.createdAt)}</span>
                 </div>
-              ))}
-            </div>
-          </Tabs.Content>
-          <Tabs.Content value="attachments" className="pt-4">
-            {(ticket.attachments ?? []).length ? (
-              <div className="grid gap-3">
-                {(ticket.attachments ?? []).map((attachment) => (
-                  <div key={attachment.id} className="flex items-center justify-between rounded-lg border border-slate-200 p-3 text-sm">
-                    <span>{attachment.name}</span>
-                    <Badge>{attachment.size}</Badge>
-                  </div>
-                ))}
+                <p className="text-sm leading-relaxed text-slate-600 font-medium pl-8">{comment.message}</p>
               </div>
-            ) : (
-              <p className="rounded-lg border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500">Belum ada lampiran.</p>
-            )}
-          </Tabs.Content>
-        </Tabs.Root>
+            ))}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -1540,9 +1737,9 @@ function TicketDetail({
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 p-3">
-      <p className="text-xs uppercase text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-medium">{value}</p>
+    <div className="rounded-xl border border-slate-100/80 bg-white/60 p-3 shadow-2xs">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-700 truncate">{value}</p>
     </div>
   );
 }
@@ -1713,7 +1910,6 @@ function ReportsView({ tickets, categories, users, leadership }: { tickets: Tick
   // ==========================================
   const resolvedTicketsGlobal = tickets.filter((t) => ['RESOLVED', 'CLOSED'].includes(t.status));
 
-  // Hitung SLA Compliance Global
   const onTimeTicketsGlobal = resolvedTicketsGlobal.filter((t) => {
     const targetResolutionTime = t.resolvedAt ? new Date(t.resolvedAt).getTime() : new Date(t.updatedAt).getTime();
     return targetResolutionTime <= new Date(t.slaDueAt).getTime();
@@ -1721,7 +1917,6 @@ function ReportsView({ tickets, categories, users, leadership }: { tickets: Tick
   const dynamicSlaCompliance = resolvedTicketsGlobal.length > 0 ? Math.round((onTimeTicketsGlobal.length / resolvedTicketsGlobal.length) * 105) : 100;
   const finalSlaCompliance = Math.min(100, dynamicSlaCompliance);
 
-  // Hitung MTTR Global (Rata-rata dalam Jam)
   const globalMttrHours =
     resolvedTicketsGlobal.length > 0
       ? resolvedTicketsGlobal.reduce((acc, t) => {
@@ -1731,7 +1926,6 @@ function ReportsView({ tickets, categories, users, leadership }: { tickets: Tick
         }, 0) / resolvedTicketsGlobal.length
       : 0;
 
-  // Hitung Tingkat Kepuasan Pengguna secara Proposional terhadap Kecepatan Penanganan (SLA)
   const dynamicSatisfaction = resolvedTicketsGlobal.length > 0 ? Math.min(100, Math.round(78 + finalSlaCompliance * 0.18)) : 92;
 
   // ==========================================
@@ -1779,14 +1973,10 @@ function ReportsView({ tickets, categories, users, leadership }: { tickets: Tick
   // ==========================================
   const technicians = users.filter((u) => u.role === 'TEKNISI');
   const dynamicTechnicianPerformance = technicians.map((tech) => {
-    // 1. Ambil SEMUA tiket yang pernah ditugaskan ke teknisi ini (untuk beban kerja)
     const allAssignedTickets = tickets.filter((t) => t.assigneeId === tech.id);
-
-    // 2. Ambil hanya tiket yang sudah selesai (untuk hitung MTTR/SLA)
     const resolvedTickets = allAssignedTickets.filter((t) => ['RESOLVED', 'CLOSED'].includes(t.status));
     const resolvedCount = resolvedTickets.length;
 
-    // 3. Hitung MTTR hanya dari tiket yang selesai
     const mttrHours =
       resolvedCount > 0
         ? resolvedTickets.reduce((acc, ticket) => {
@@ -1796,7 +1986,6 @@ function ReportsView({ tickets, categories, users, leadership }: { tickets: Tick
           }, 0) / resolvedCount
         : 0;
 
-    // 4. Hitung kepatuhan SLA dari tiket yang selesai
     const onTimeCount = resolvedTickets.filter((ticket) => {
       const end = ticket.resolvedAt ? new Date(ticket.resolvedAt).getTime() : new Date(ticket.updatedAt).getTime();
       return end <= new Date(ticket.slaDueAt).getTime();
@@ -1807,92 +1996,111 @@ function ReportsView({ tickets, categories, users, leadership }: { tickets: Tick
     return {
       name: tech.name,
       resolved: resolvedCount,
-      // Jika belum ada tiket selesai, MTTR 0 jam
       mttr: resolvedCount > 0 ? Number(mttrHours.toFixed(1)) : 0,
       sla: slaCompliance,
     };
   });
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
         <KpiCard icon={Gauge} label="SLA Compliance" value={`${finalSlaCompliance}%`} helper="Target PRD > 90%" />
         <KpiCard icon={Clock3} label="MTTR" value={`${globalMttrHours.toFixed(1).replace('.', ',')} jam`} helper="Target PRD < 4 jam" />
         <KpiCard icon={Users} label="Kepuasan" value={`${dynamicSatisfaction}%`} helper="Berdasarkan performa resolusi" />
       </div>
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Performa MTTR</CardTitle>
-            <CardDescription>Rata-rata durasi resolusi mingguan riil.</CardDescription>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card className="overflow-hidden rounded-[2rem] border-white/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
+          <CardHeader className="border-b border-slate-100/50 pb-4 bg-white/50">
+            <CardTitle className="text-xl font-bold text-slate-800">Performa MTTR</CardTitle>
+            <CardDescription className="text-slate-500">Rata-rata durasi resolusi mingguan riil.</CardDescription>
           </CardHeader>
-          <CardContent className="h-72">
+          <CardContent className="h-[320px] p-6">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={dynamicWeeklyTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="day" />
-                <YAxis />
-                <ChartTooltip />
-                <Line type="monotone" dataKey="mttr" name="MTTR (Jam)" stroke="#0369a1" strokeWidth={3} />
+              <LineChart data={dynamicWeeklyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                <ChartTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                <Line type="monotone" dataKey="mttr" name="MTTR (Jam)" stroke="#0ea5e9" strokeWidth={4} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6, strokeWidth: 0, fill: '#0ea5e9' }} />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Tiket per Kategori</CardTitle>
-            <CardDescription>Beban layanan berdasarkan area dukungan.</CardDescription>
+
+        <Card className="overflow-hidden rounded-[2rem] border-white/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
+          <CardHeader className="border-b border-slate-100/50 pb-4 bg-white/50">
+            <CardTitle className="text-xl font-bold text-slate-800">Tiket per Kategori</CardTitle>
+            <CardDescription className="text-slate-500">Beban layanan berdasarkan area dukungan.</CardDescription>
           </CardHeader>
-          <CardContent className="h-72">
+          <CardContent className="h-[320px] p-6">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={byCategory}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="name" />
-                <YAxis allowDecimals={false} />
-                <ChartTooltip />
-                <Bar dataKey="value" name="Tiket" fill="#0f766e" />
+              <BarChart data={byCategory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
+                <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                <ChartTooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                <Bar dataKey="value" name="Tiket" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>{leadership ? 'Ringkasan Eksekutif' : 'Kinerja Teknisi'}</CardTitle>
-          <CardDescription>Data real-time berdasarkan aktivitas teknisi.</CardDescription>
+
+      <Card className="overflow-hidden rounded-[2rem] border-white/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
+        <CardHeader className="border-b border-slate-100/50 pb-5 bg-white/50">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 shadow-sm">
+              <Users className="h-6 w-6" />
+            </div>
+            <div>
+              <CardTitle className="text-xl font-bold text-slate-800">{leadership ? 'Ringkasan Eksekutif' : 'Kinerja Teknisi'}</CardTitle>
+              <CardDescription className="text-slate-500">Data real-time performa berdasarkan aktivitas penyelesaian tiket.</CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Teknisi / Tim</TableHead>
-                <TableHead>Resolved</TableHead>
-                <TableHead>MTTR</TableHead>
-                <TableHead>SLA</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {dynamicTechnicianPerformance.length > 0 ? (
-                dynamicTechnicianPerformance.map((row) => (
-                  <TableRow key={row.name}>
-                    <TableCell className="font-medium">{row.name}</TableCell>
-                    <TableCell>{row.resolved}</TableCell>
-                    <TableCell>{row.mttr} jam</TableCell>
-                    <TableCell>
-                      <Badge variant={row.sla >= 90 ? 'emerald' : 'amber'}>{row.sla}%</Badge>
+        <CardContent className="p-0 sm:p-6 bg-slate-50/50">
+          <div className="m-4 sm:m-0 overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
+            <Table>
+              <TableHeader className="bg-slate-50/80">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="font-bold text-slate-700">Teknisi / Tim</TableHead>
+                  <TableHead className="font-bold text-slate-700">Tiket Selesai</TableHead>
+                  <TableHead className="font-bold text-slate-700">Rata-rata MTTR</TableHead>
+                  <TableHead className="font-bold text-slate-700">Kepatuhan SLA</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dynamicTechnicianPerformance.length > 0 ? (
+                  dynamicTechnicianPerformance.map((row) => (
+                    <TableRow key={row.name} className="transition-colors hover:bg-slate-50">
+                      <TableCell className="font-semibold text-slate-800">{row.name}</TableCell>
+                      <TableCell>
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-700">{row.resolved}</span>
+                      </TableCell>
+                      <TableCell className="font-medium text-slate-600">
+                        {row.mttr} <span className="text-[10px] uppercase text-slate-400">jam</span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={row.sla >= 90 ? 'emerald' : 'amber'} className="rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide">
+                          {row.sla}%
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-8 text-sm font-medium text-slate-500">
+                      Belum ada data kinerja teknisi.
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center py-5 text-sm text-slate-500">
-                    Belum ada data teknisi.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-          <p className="mt-4 text-xs text-slate-500">Audit-ready: seluruh perubahan status, komentar, dan assignment ditampilkan sebagai jejak aktivitas di detail tiket.</p>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="px-6 pb-4 pt-4 sm:px-2 sm:pt-3">
+            <p className="text-[11px] font-medium text-slate-400">* Audit-ready: Seluruh kalkulasi performa teknisi ditarik otomatis dari log perubahan status dan riwayat resolusi.</p>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -1971,49 +2179,88 @@ function UserProfileView({ user, tickets, activityLogs }: { user: User; tickets:
   const myTickets = tickets.filter((ticket) => ticket.reporterId === user.id);
   const assigned = tickets.filter((ticket) => ticket.assigneeId === user.id);
   const recentLogs = activityLogs.filter((log) => log.userId === user.id).slice(0, 5);
+
   return (
-    <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-      <Card>
-        <CardHeader>
-          <CardTitle>User Profile</CardTitle>
-          <CardDescription>Ringkasan identitas dan aktivitas terbaru.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 text-lg font-semibold text-sky-800">{getInitials(user.name)}</div>
-            <div>
-              <p className="text-lg font-semibold">{user.name}</p>
-              <p className="text-sm text-slate-500">
-                {roleLabels[user.role]} - {user.unit}
-              </p>
-              <p className="text-sm text-slate-500">{user.email}</p>
+    <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] items-start">
+      {/* Kolom Kiri: Kartu Identitas Pengguna */}
+      <Card className="overflow-hidden rounded-[2rem] border-white/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl relative">
+        {/* Ornamen Latar Belakang */}
+        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-br from-sky-500 via-sky-600 to-indigo-600 opacity-90" />
+
+        <CardContent className="pt-20 pb-6 px-6 relative z-10">
+          <div className="flex flex-col items-center text-center space-y-4 mb-8">
+            {/* Avatar Canggih */}
+            <div className="relative">
+              <div className="absolute inset-0 rounded-full bg-sky-200 blur-lg opacity-60 animate-pulse" />
+              <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-white text-3xl font-extrabold text-sky-700 shadow-xl border-4 border-white/50 backdrop-blur-sm">{getInitials(user.name)}</div>
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight">{user.name}</h3>
+              <p className="text-sm font-medium text-slate-500">{user.email}</p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2 pt-2">
+                <Badge variant="sky" className="rounded-lg px-3 py-1 text-xs font-bold uppercase tracking-widest shadow-sm">
+                  {roleLabels[user.role]}
+                </Badge>
+                <Badge variant="slate" className="rounded-lg px-3 py-1 text-xs font-medium border-slate-200 bg-slate-50 text-slate-600">
+                  {user.unit || 'Unit Kerja Belum Diatur'}
+                </Badge>
+              </div>
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Info label="Total Tiket Saya" value={String(myTickets.length)} />
-            <Info label="Tiket Ditangani" value={String(assigned.length)} />
-            <Info label="Nomor Telepon" value={user.phone ?? '-'} />
-            <Info label="Bergabung" value={toDate(user.createdAt)} />
+
+          <div className="space-y-3">
+            <Label className="text-xs font-bold uppercase tracking-wider text-slate-400 ml-1">Statistik & Kontak</Label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Info label="Total Tiket Saya" value={`${myTickets.length} Laporan`} />
+              <Info label="Tiket Ditangani" value={`${assigned.length} Insiden`} />
+              <Info label="Nomor Telepon" value={user.phone || 'Belum ditambahkan'} />
+              <Info label="Tanggal Bergabung" value={toDate(user.createdAt)} />
+            </div>
           </div>
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Aktivitas Terbaru</CardTitle>
-          <CardDescription>Jejak aksi yang dilakukan oleh user.</CardDescription>
+
+      {/* Kolom Kanan: Jejak Aktivitas */}
+      <Card className="overflow-hidden rounded-[2rem] border-white/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
+        <CardHeader className="border-b border-slate-100/50 pb-5 bg-white/50">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 shadow-sm">
+              <ClipboardList className="h-6 w-6" />
+            </div>
+            <div>
+              <CardTitle className="text-xl font-bold text-slate-800">Aktivitas Terbaru</CardTitle>
+              <CardDescription className="text-slate-500">Jejak aksi dan interaksi Anda di dalam sistem.</CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {recentLogs.length ? (
-            recentLogs.map((log) => (
-              <div key={log.id} className="rounded-lg border border-slate-200 p-3">
-                <p className="text-sm font-medium">{formatActivityTitle(log)}</p>
-                <p className="text-sm text-slate-500">{log.description}</p>
-                <p className="text-xs text-slate-400">{toDate(log.createdAt)}</p>
+        <CardContent className="p-6 bg-slate-50/50 min-h-[400px]">
+          <div className="space-y-4">
+            {recentLogs.length ? (
+              recentLogs.map((log) => (
+                <div key={log.id} className="group flex items-start gap-4 rounded-2xl border border-slate-200/60 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-sky-300 hover:shadow-md">
+                  <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-400 transition-colors group-hover:bg-sky-50 group-hover:text-sky-600">
+                    <Activity className="h-5 w-5" />
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                      <p className="text-sm font-bold text-slate-800">{formatActivityTitle(log)}</p>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap bg-slate-50 px-2 py-1 rounded-md">{toDate(log.createdAt)}</span>
+                    </div>
+                    <p className="text-sm leading-relaxed text-slate-600">{log.description}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center h-full">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
+                  <ClipboardList className="h-8 w-8 text-slate-300" />
+                </div>
+                <p className="text-lg font-semibold text-slate-700">Belum ada aktivitas</p>
+                <p className="max-w-xs text-sm text-slate-500 mt-1">Aktivitas Anda seperti membuat tiket atau login akan direkam dan ditampilkan di sini.</p>
               </div>
-            ))
-          ) : (
-            <EmptyState title="Belum ada aktivitas" description="Aktivitas user akan tampil di sini." />
-          )}
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
