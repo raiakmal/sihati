@@ -1294,6 +1294,20 @@ function CreateTicketView({ categories, onSubmit }: { categories: Category[]; on
       description: '',
     },
   });
+
+  const handleSubmitForm = form.handleSubmit(async (values) => {
+    try {
+      // panggil parent handler
+      await onSubmit(values);
+
+      // reset form kalau sukses
+      form.reset();
+    } catch (err) {
+      // error sudah ditangani di parent (toast.error)
+      console.error('Create ticket failed:', err);
+    }
+  });
+
   return (
     <Card className="overflow-hidden rounded-[2rem] border-white/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
       <CardHeader className="border-b border-slate-100/50 pb-6 bg-white/50">
@@ -1301,25 +1315,33 @@ function CreateTicketView({ categories, onSubmit }: { categories: Category[]; on
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-100 text-sky-600 shadow-sm">
             <CirclePlus className="h-6 w-6" />
           </div>
+
           <div>
             <CardTitle className="text-xl font-bold text-slate-800">Buat Tiket Baru</CardTitle>
             <CardDescription className="text-slate-500">Lengkapi detail kendala infrastruktur IT Anda untuk mempercepat koordinasi teknisi.</CardDescription>
           </div>
         </div>
       </CardHeader>
+
       <CardContent className="p-6 sm:p-8">
-        <form className="grid gap-6 lg:grid-cols-2" onSubmit={(e) => void form.handleSubmit(onSubmit)(e)}>
+        <form className="grid gap-6 lg:grid-cols-2" onSubmit={handleSubmitForm}>
+          {/* TITLE */}
           <div className="space-y-2 lg:col-span-2">
             <Label className="text-slate-700 font-semibold text-sm">Judul Kendala / Insiden</Label>
+
             <Input
               placeholder="Contoh: Jaringan internet router Mikrotik lantai 2 mati total"
               className="h-11 rounded-xl border-slate-200 bg-white/50 focus-visible:ring-sky-500 focus-visible:bg-white transition-all shadow-sm"
               {...form.register('title')}
             />
+
             <FormError message={form.formState.errors.title?.message} />
           </div>
+
+          {/* CATEGORY */}
           <div className="space-y-2">
             <Label className="text-slate-700 font-semibold text-sm">Kategori Layanan IT</Label>
+
             <select
               className="h-11 w-full rounded-xl border border-slate-200 bg-white/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all shadow-sm text-slate-800"
               {...form.register('categoryId')}
@@ -1331,10 +1353,14 @@ function CreateTicketView({ categories, onSubmit }: { categories: Category[]; on
                 </option>
               ))}
             </select>
+
             <FormError message={form.formState.errors.categoryId?.message} />
           </div>
+
+          {/* PRIORITY */}
           <div className="space-y-2">
             <Label className="text-slate-700 font-semibold text-sm">Tingkat Prioritas Dampak</Label>
+
             <select
               className="h-11 w-full rounded-xl border border-slate-200 bg-white/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all shadow-sm text-slate-800"
               {...form.register('priority')}
@@ -1346,24 +1372,34 @@ function CreateTicketView({ categories, onSubmit }: { categories: Category[]; on
               ))}
             </select>
           </div>
+
+          {/* LOCATION */}
           <div className="space-y-2 lg:col-span-2">
             <Label className="text-slate-700 font-semibold text-sm">Lokasi Detail / Unit Kerja Terdampak</Label>
+
             <Input
               placeholder="Gedung A, Lantai 2, Ruang Rapat Utama Bappeda"
               className="h-11 rounded-xl border-slate-200 bg-white/50 focus-visible:ring-sky-500 focus-visible:bg-white transition-all shadow-sm"
               {...form.register('location')}
             />
+
             <FormError message={form.formState.errors.location?.message} />
           </div>
+
+          {/* DESCRIPTION */}
           <div className="space-y-2 lg:col-span-2">
             <Label className="text-slate-700 font-semibold text-sm">Deskripsi Kronologi Masalah</Label>
+
             <Textarea
-              placeholder="Jelaskan secara rinci mengenai gejala kendala, waktu mulai terjadinya gangguan, serta dampak operasionalnya pada layanan publik."
+              placeholder="Jelaskan secara rinci mengenai gejala kendala..."
               className="min-h-[120px] rounded-xl border-slate-200 bg-white/50 focus-visible:ring-sky-500 focus-visible:bg-white transition-all shadow-sm p-4 leading-relaxed"
               {...form.register('description')}
             />
+
             <FormError message={form.formState.errors.description?.message} />
           </div>
+
+          {/* BUTTON */}
           <div className="flex justify-end lg:col-span-2 pt-2">
             <Button type="submit" className="h-11 rounded-xl bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-700 hover:to-sky-800 text-white shadow-md hover:shadow-lg transition-all px-6 font-medium">
               <CirclePlus className="h-4 w-4" />

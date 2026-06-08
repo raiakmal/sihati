@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { ticket } from '@/lib/db/schema';
+import { activityLog, ticket } from '@/lib/db/schema';
 import { requireSession } from '@/lib/server/require-session';
-import { eq, or, isNull } from 'drizzle-orm'; // pastikan 'and' tidak ada jika tidak dipakai
+import { eq, or, isNull } from 'drizzle-orm';
 
 export async function GET(request: Request) {
   const session = await requireSession();
@@ -33,8 +33,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json(rows);
 }
-
-// ... sisanya (POST) tetap sama
 
 export async function POST(request: Request) {
   const session = await requireSession();
