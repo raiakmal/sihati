@@ -3,7 +3,6 @@
 import * as React from 'react';
 import * as AvatarPrimitive from '@radix-ui/react-avatar';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import * as Tabs from '@radix-ui/react-tabs';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -28,7 +27,6 @@ import {
   Settings2,
   ShieldCheck,
   TicketCheck,
-  Upload,
   UserRound,
   UserCog,
   Users,
@@ -50,7 +48,7 @@ import { DataTable } from '@/components/shared/data-table';
 import { GlobalSearch } from '@/components/shared/global-search';
 import { EmptyState, ErrorState, LoadingState } from '@/components/shared/state-blocks';
 import { TicketTimeline, type TimelineEvent } from '@/components/shared/ticket-timeline';
-import { technicianPerformance, weeklyTrend } from '@/lib/mock-data';
+import { weeklyTrend } from '@/lib/mock-data';
 import type { ActivityLog, Category, Comment, Priority, RoleType, Ticket, TicketStatus, User } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { authClient } from '@/lib/auth-client';
@@ -657,7 +655,7 @@ function AuthScreen({
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [loggingIn, setLoggingIn] = React.useState(false);
-  const [dbUsers, setDbUsers] = React.useState<any[]>([]);
+  const [dbUsers, setDbUsers] = React.useState<User[]>([]);
 
   React.useEffect(() => {
     fetch('/api/users')
@@ -892,7 +890,7 @@ function PublicForm({ mode, onModeChange }: { mode: 'register' | 'forgot'; onMod
           toast.success('Registrasi berhasil! Silakan masuk dengan akun Anda.');
           onModeChange('login');
         }
-      } catch (error) {
+      } catch {
         toast.error('Terjadi kesalahan jaringan.');
       } finally {
         setLoading(false);
@@ -1744,14 +1742,6 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
-function TabTrigger({ value, children }: { value: string; children: React.ReactNode }) {
-  return (
-    <Tabs.Trigger value={value} className="border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 data-[state=active]:border-sky-700 data-[state=active]:text-sky-800">
-      {children}
-    </Tabs.Trigger>
-  );
-}
-
 function UserManagement({ users, onUsersChange }: { users: User[]; onUsersChange: (users: User[]) => void }) {
   const [dialogOpen, setDialogOpen] = React.useState(false);
 
@@ -2408,9 +2398,8 @@ function buildTicketTimeline(ticket: Ticket, users: User[], categories: Category
   });
 
   const allEvents = [...baseEvents, ...logEvents]
-    .map((event) => ({ ...event, atDate: new Date(event.at) }))
-    .sort((a, b) => a.atDate.getTime() - b.atDate.getTime())
-    .map(({ atDate, ...event }) => ({
+    .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+    .map((event) => ({
       ...event,
       at: toDate(event.at),
     }));

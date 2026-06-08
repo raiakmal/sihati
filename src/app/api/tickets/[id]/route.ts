@@ -1,46 +1,48 @@
 import { NextResponse } from 'next/server';
-import { and, eq, isNull, or } from 'drizzle-orm';
+import { eq, isNull, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { activityLog, ticket } from '@/lib/db/schema';
 import { requireSession } from '@/lib/server/require-session';
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request) {
   const session = await requireSession();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const role = session.user.role;
-  const id = params.id;
+  // Tambahkan fallback || '' agar role selalu bertipe string
+  const role = session.user.role || '';
+
+  const { searchParams } = new URL(request.url);
+  // Sekarang .includes(role) tidak akan protes karena role dipastikan string
+  const fetchAll = searchParams.get('all') === 'true' && ['TEKNISI', 'ADMIN', 'PIMPINAN'].includes(role);
+
   let rows;
 
-  if (role === 'PEGAWAI') {
-    rows = await db
-      .select()
-      .from(ticket)
-      .where(and(eq(ticket.id, id), eq(ticket.reporterId, session.user.id)));
+  if (fetchAll) {
+    rows = await db.select().from(ticket);
+  } else if (role === 'PEGAWAI') {
+    rows = await db.select().from(ticket).where(eq(ticket.reporterId, session.user.id));
   } else if (role === 'TEKNISI') {
     rows = await db
       .select()
       .from(ticket)
-      .where(and(eq(ticket.id, id), or(eq(ticket.assigneeId, session.user.id), isNull(ticket.assigneeId))));
+      .where(or(eq(ticket.assigneeId, session.user.id), isNull(ticket.assigneeId)));
   } else {
-    rows = await db.select().from(ticket).where(eq(ticket.id, id));
+    rows = await db.select().from(ticket);
   }
 
-  const item = rows[0];
-  if (!item) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
-
-  return NextResponse.json(item);
+  return NextResponse.json(rows);
 }
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const resolvedParams = await params;
+  const id = resolvedParams.id;
 
   const body = (await request.json()) as {
     status?: 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'PENDING' | 'RESOLVED' | 'CLOSED' | 'REJECTED';
@@ -50,12 +52,13 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     description?: string;
   };
 
-  const role = session.user.role;
+  const role = session.user.role || '';
+
   if (body.status && !['TEKNISI', 'ADMIN'].includes(role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  if (body.assigneeId && !['TEKNISI', 'ADMIN'].includes(role)) {
+  if (body.assigneeId !== undefined && !['TEKNISI', 'ADMIN'].includes(role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -85,7 +88,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     updates.description = body.description;
   }
 
-  const [updated] = await db.update(ticket).set(updates).where(eq(ticket.id, params.id)).returning();
+  const [updated] = await db.update(ticket).set(updates).where(eq(ticket.id, id)).returning();
 
   if (!updated) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -104,7 +107,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   return NextResponse.json(updated);
 }
 
-export async function DELETE(_: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireSession();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -114,7 +117,10 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const [deleted] = await db.delete(ticket).where(eq(ticket.id, params.id)).returning();
+  const resolvedParams = await params;
+  const id = resolvedParams.id;
+
+  const [deleted] = await db.delete(ticket).where(eq(ticket.id, id)).returning();
   if (!deleted) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { desc, eq, isNull, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { activityLog, ticket } from '@/lib/db/schema';
+import { ticket } from '@/lib/db/schema';
 import { requireSession } from '@/lib/server/require-session';
+import { eq, or, isNull } from 'drizzle-orm'; // pastikan 'and' tidak ada jika tidak dipakai
 
 export async function GET(request: Request) {
   const session = await requireSession();
@@ -10,30 +10,31 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const role = session.user.role;
+  // MEMASTIKAN ROLE ADALAH STRING
+  const role = (session.user.role as string) || '';
+
   const { searchParams } = new URL(request.url);
-  // ?all=true digunakan oleh ReportsView agar TEKNISI bisa melihat semua tiket untuk kalkulasi kinerja
   const fetchAll = searchParams.get('all') === 'true' && ['TEKNISI', 'ADMIN', 'PIMPINAN'].includes(role);
 
   let rows;
 
-  if (fetchAll || role === 'ADMIN' || role === 'PIMPINAN') {
-    // Semua tiket — untuk laporan global dan role admin/pimpinan
-    rows = await db.select().from(ticket).orderBy(desc(ticket.createdAt));
+  if (fetchAll) {
+    rows = await db.select().from(ticket);
+  } else if (role === 'PEGAWAI') {
+    rows = await db.select().from(ticket).where(eq(ticket.reporterId, session.user.id));
   } else if (role === 'TEKNISI') {
-    // Tiket milik teknisi + tiket OPEN yang belum diassign
     rows = await db
       .select()
       .from(ticket)
-      .where(or(eq(ticket.assigneeId, session.user.id), isNull(ticket.assigneeId)))
-      .orderBy(desc(ticket.createdAt));
+      .where(or(eq(ticket.assigneeId, session.user.id), isNull(ticket.assigneeId)));
   } else {
-    // PEGAWAI — hanya tiket milik sendiri
-    rows = await db.select().from(ticket).where(eq(ticket.reporterId, session.user.id)).orderBy(desc(ticket.createdAt));
+    rows = await db.select().from(ticket);
   }
 
   return NextResponse.json(rows);
 }
+
+// ... sisanya (POST) tetap sama
 
 export async function POST(request: Request) {
   const session = await requireSession();

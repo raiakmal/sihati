@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { desc } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { activityLog } from '@/lib/db/schema';
+import { desc } from 'drizzle-orm';
 import { requireSession } from '@/lib/server/require-session';
 
 export async function GET() {
@@ -10,10 +10,13 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (!['ADMIN', 'TEKNISI', 'PIMPINAN'].includes(session.user.role)) {
+  // Tambahkan fallback || '' agar tipe datanya selalu string
+  const role = session.user.role || '';
+
+  if (!['ADMIN', 'TEKNISI', 'PIMPINAN'].includes(role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const rows = await db.select().from(activityLog).orderBy(desc(activityLog.createdAt));
-  return NextResponse.json(rows);
+  const logs = await db.select().from(activityLog).orderBy(desc(activityLog.createdAt));
+  return NextResponse.json(logs);
 }
